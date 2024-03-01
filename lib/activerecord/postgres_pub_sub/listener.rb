@@ -9,22 +9,24 @@ module ActiveRecord
       extend PrivateAttr
 
       private_attr_reader :on_notify_blk, :on_start_blk, :on_timeout_blk,
-                          :channels, :listen_timeout, :exclusive_lock, :notify_only
+                          :channels, :listen_timeout, :exclusive_lock, :notify_only, :base
 
-      def self.listen(*channels, listen_timeout: nil, exclusive_lock: true, notify_only: true)
+      def self.listen(*channels, listen_timeout: nil, exclusive_lock: true, notify_only: true, base: ActiveRecord::Base)
         listener = new(*channels,
                        listen_timeout: listen_timeout,
                        exclusive_lock: exclusive_lock,
-                       notify_only: notify_only)
+                       notify_only: notify_only,
+                       base: base)
         yield(listener) if block_given?
         listener.listen
       end
 
-      def initialize(*channels, listen_timeout: nil, exclusive_lock: true, notify_only: true)
+      def initialize(*channels, listen_timeout: nil, exclusive_lock: true, notify_only: true, base: ActiveRecord::Base)
         @channels = channels
         @listen_timeout = listen_timeout
         @exclusive_lock = exclusive_lock
         @notify_only = notify_only
+        @base = base
       end
 
       def on_notify(&blk)
@@ -54,7 +56,7 @@ module ActiveRecord
       private
 
       def with_connection
-        ActiveRecord::Base.connection_pool.with_connection do |connection|
+        @base.connection_pool.with_connection do |connection|
           with_optional_lock do
             channels.each do |channel|
               connection.execute("LISTEN #{channel};")
